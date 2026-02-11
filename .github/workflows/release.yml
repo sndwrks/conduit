@@ -89,6 +89,19 @@ jobs:
           merge-multiple: true
       - name: List downloaded artifacts
         run: find artifacts -type f | sort
+      - name: Rename artifacts
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
+          cd artifacts
+          for f in *_aarch64.dmg; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-mac-arm.dmg"; done
+          for f in *_x64.dmg; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-mac-intel.dmg"; done
+          for f in *_x64-setup.exe; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-windows.exe"; done
+          for f in *_x64_en-US.msi; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-windows.msi"; done
+          for f in *_amd64.deb; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-linux.deb"; done
+          for f in *.rpm; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-linux.rpm"; done
+          for f in *.AppImage; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-linux.AppImage"; done
+          echo "Renamed artifacts:"
+          ls -la
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
