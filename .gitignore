@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# claude
+.claude/
+
+# Build output
+dist/
+src-tauri/target/
+
+# Environment
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+
+# Tauri generated
+src-tauri/gen/
