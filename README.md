@@ -10,7 +10,7 @@ We made this because we were sad osculator went away. RIP.
 
 ## Install
 
-Download the appropriate file for your system from the latest release.
+Download the appropriate file for your system from the latest release. [Releases](https://github.com/sndwrks/conduit/releases)
 
 ### macOS (Apple Silicon)
 
