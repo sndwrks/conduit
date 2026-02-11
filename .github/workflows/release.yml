@@ -14,7 +14,7 @@ jobs:
     outputs:
       version: ${{ steps.read.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: read
         run: |
           VERSION=$(jq -r '.version' src-tauri/tauri.conf.json)
@@ -39,7 +39,7 @@ jobs:
             target: x86_64-unknown-linux-gnu
             label: linux-x64
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
@@ -60,7 +60,6 @@ jobs:
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # macOS signing (configure secrets in repo settings):
           # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           # APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -69,9 +68,47 @@ jobs:
           # APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           # APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: v${{ needs.get-version.outputs.version }}
-          releaseName: Conduit v${{ needs.get-version.outputs.version }}
-          releaseBody: "See CHANGELOG.md for details."
-          releaseDraft: true
-          prerelease: false
           args: --target ${{ matrix.target }}
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: artifacts-${{ matrix.label }}
+          if-no-files-found: ignore
+          path: |
+            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            src-tauri/target/${{ matrix.target }}/release/bundle/msi/*.msi
+            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*-setup.exe
+            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
+            src-tauri/target/${{ matrix.target }}/release/bundle/rpm/*.rpm
+            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
+
+  release:
+    needs: [get-version, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: List downloaded artifacts
+        run: find artifacts -type f | sort
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.get-version.outputs.version }}"
+          TAG="v${VERSION}"
+          FILES=$(find artifacts -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \))
+          if [ -z "$FILES" ]; then
+            echo "::error::No release artifacts found"
+            exit 1
+          fi
+          echo "Creating draft release ${TAG} with artifacts:"
+          echo "$FILES"
+          # shellcheck disable=SC2086
+          gh release create "$TAG" $FILES \
+            --draft \
+            --title "Conduit ${TAG}" \
+            --notes "Built from \`$(git rev-parse --short HEAD)\` on $(date -u +%Y-%m-%d)"

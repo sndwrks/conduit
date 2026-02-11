@@ -2,7 +2,7 @@
 
 # Conduit
 
-A cross-platform desktop application that bridges OSC (Open Sound Control) and MIDI protocols. Very much written with a lot of help from AI, but this is tested and will be actively maintained.
+A cross-platform desktop application that bridges OSC (Open Sound Control) and MIDI protocols. Very much written with a lot of help from AI, but this is tested and will be actively maintained, and we use it #dogfooding.
 
 We made this because we were sad osculator went away. RIP. 
 
@@ -28,15 +28,15 @@ Download the `windows-x64` installer and run it. Windows may show a SmartScreen 
 
 Download the `linux-x64` AppImage or deb file. For AppImage, make it executable with `chmod +x` and run it. For deb, install with your package manager.
 
-[!NOTE]
-I only currently have a Mac with an ARM processor easily available. Please open an issue if it doesn't work on your OS.
+> [!NOTE]
+> I only currently have a Mac with an ARM processor easily available. Please open an issue if it doesn't work on your OS.
 
 ## Settings
 
 In the top right corner, there's a settings icon. Click on that to open it.
 
-[!IMPORTANT]
-You cannot change the settings while the app is running. Please click stop to edit the settings.
+> [!IMPORTANT]
+> You cannot change the settings while the app is running. Please click stop to edit the settings.
 
 ### OSC
 
