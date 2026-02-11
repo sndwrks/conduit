@@ -1,0 +1,22 @@
+name: Question
+description: Ask a question about the app
+title: "[Question]: "
+labels: ["question"]
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Your Question
+      description: What would you like to know? Be as specific as possible.
+      placeholder: Ask your question here
+    validations:
+      required: true
+  
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Any additional information that might help us answer your question.
+      placeholder: Provide any relevant context, screenshots, or examples
+    validations:
+      required: false

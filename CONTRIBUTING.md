@@ -2,6 +2,10 @@
 
 We welcome all contributions! Thank you for taking the time to contribute to this project.
 
+## Commit Naming
+
+Please name your commits something that will be useful in future years. Also, it's helpful if you make changes in disparate places to make separate commits. For example, UI changes to add MIDI sysex commands, and backend changes to add MIDI sysex commands.
+
 ## Branch Naming Convention
 
 Please name your branches using the following format:

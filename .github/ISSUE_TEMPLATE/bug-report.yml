@@ -1,0 +1,52 @@
+name: Bug Report
+description: Report a bug or issue
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: input
+    id: os-version
+    attributes:
+      label: OS Version
+      description: Please specify your operating system and version (e.g., macOS 14.2, Windows 11, Ubuntu 22.04)
+      placeholder: "macOS 14.2"
+    validations:
+      required: true
+  
+  - type: input
+    id: app-version
+    attributes:
+      label: App Version
+      description: What version of the app are you using? You can find this in the app's about section or settings.
+      placeholder: "1.0.0"
+    validations:
+      required: true
+  
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What Happened
+      description: Describe what went wrong. Be as detailed as possible about what you observed.
+      placeholder: Tell us what you see
+    validations:
+      required: true
+  
+  - type: textarea
+    id: steps-to-reproduce
+    attributes:
+      label: Steps to Reproduce
+      description: Explain how to reproduce the issue. What did you do right before the problem occurred?
+      placeholder: |
+        1. Go to...
+        2. Click on...
+        3. See error...
+    validations:
+      required: true
+  
+  - type: textarea
+    id: expected-outcome
+    attributes:
+      label: Expected Outcome
+      description: What should have happened instead? Describe the behavior you expected to see.
+      placeholder: What did you expect to happen?
+    validations:
+      required: true

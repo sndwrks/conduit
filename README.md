@@ -10,6 +10,27 @@ We made this because we were sad osculator went away. RIP.
 
 ## Install
 
+Download the appropriate file for your system from the latest release.
+
+### macOS (Apple Silicon)
+
+Download the `macos-arm64` file. After downloading, right-click the app and select "Open". If that doesn't work, go to System Settings > Privacy & Security and click "Open Anyway" next to the blocked app message. Apple code signing is coming soon.
+
+### macOS (Intel)
+
+Download the `macos-x64` file. Follow the same steps as above to allow the app to run.
+
+### Windows
+
+Download the `windows-x64` installer and run it. Windows may show a SmartScreen warning—click "More info" and then "Run anyway".
+
+### Linux
+
+Download the `linux-x64` AppImage or deb file. For AppImage, make it executable with `chmod +x` and run it. For deb, install with your package manager.
+
+[!NOTE]
+I only currently have a Mac with an ARM processor easily available. Please open an issue if it doesn't work on your OS.
+
 ## Settings
 
 In the top right corner, there's a settings icon. Click on that to open it.
