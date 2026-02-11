@@ -89,18 +89,22 @@ jobs:
           merge-multiple: true
       - name: List downloaded artifacts
         run: find artifacts -type f | sort
-      - name: Rename artifacts
+      - name: Flatten and rename artifacts
         run: |
           VERSION="${{ needs.get-version.outputs.version }}"
           cd artifacts
-          for f in *_aarch64.dmg; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-mac-arm.dmg"; done
-          for f in *_x64.dmg; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-mac-intel.dmg"; done
-          for f in *_x64-setup.exe; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-windows.exe"; done
-          for f in *_x64_en-US.msi; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-windows.msi"; done
-          for f in *_amd64.deb; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-linux.deb"; done
-          for f in *.rpm; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-linux.rpm"; done
-          for f in *.AppImage; do [ -f "$f" ] && mv "$f" "Conduit-${VERSION}-linux.AppImage"; done
-          echo "Renamed artifacts:"
+          # Flatten: move all nested files to current directory
+          find . -mindepth 2 -type f -exec mv {} . \;
+          find . -mindepth 1 -type d -empty -delete
+          # Rename to friendly names
+          for f in *_aarch64.dmg; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_mac-arm.dmg"; done
+          for f in *_x64.dmg; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_mac-intel.dmg"; done
+          for f in *_x64-setup.exe; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_windows.exe"; done
+          for f in *_x64_en-US.msi; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_windows.msi"; done
+          for f in *_amd64.deb; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_linux.deb"; done
+          for f in *.rpm; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_linux.rpm"; done
+          for f in *.AppImage; do [ -f "$f" ] && mv "$f" "conduit_${VERSION}_linux.AppImage"; done
+          echo "Final artifacts:"
           ls -la
       - name: Create GitHub Release
         env:
@@ -108,7 +112,7 @@ jobs:
         run: |
           VERSION="${{ needs.get-version.outputs.version }}"
           TAG="v${VERSION}"
-          FILES=$(find artifacts -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*-setup.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \))
+          FILES=$(find artifacts -type f \( -name '*.dmg' -o -name '*.msi' -o -name '*.exe' -o -name '*.deb' -o -name '*.rpm' -o -name '*.AppImage' \))
           if [ -z "$FILES" ]; then
             echo "::error::No release artifacts found"
             exit 1
