@@ -5,6 +5,7 @@ on:
 
 jobs:
   test-rust:
+    name: unit-test-rust
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -27,6 +28,7 @@ jobs:
 
   test-frontend:
     runs-on: ubuntu-latest
+    name: unit-test-frontend
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v4
@@ -40,6 +42,7 @@ jobs:
       - run: npm run lint
 
   typecheck:
+    name: typecheck
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -51,6 +54,7 @@ jobs:
       - run: npm run typecheck
 
   audit-rust:
+    name: audit-rust
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
