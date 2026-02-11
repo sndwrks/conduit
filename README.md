@@ -29,7 +29,7 @@ Download the `windows-x64` installer and run it. Windows may show a SmartScreen 
 Download the `linux-x64` AppImage or deb file. For AppImage, make it executable with `chmod +x` and run it. For deb, install with your package manager.
 
 > [!NOTE]
-> I only currently have a Mac with an ARM processor easily available. Please open an issue if it doesn't work on your OS.
+> I only currently have a Mac with an ARM processor easily available. Please open an issue if it doesn't work on your OS. I am new to the whole desktop app game.
 
 ## Settings
 
