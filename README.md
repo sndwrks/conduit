@@ -31,7 +31,7 @@ Download the `linux` AppImage or deb file. For AppImage, make it executable with
 > [!NOTE]
 > I only currently have a Mac with an ARM processor easily available. Please open an issue if it doesn't work on your OS. I am new to the whole desktop app game. But it is fast.
 
-[!conduit-speed-test-76k/s](images/conduit-speed.png)
+![conduit-speed-test-76k/s](images/conduit-speed.png)
 
 credit [Joel Wetzell](https://github.com/jwetzell)
 
