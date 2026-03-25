@@ -235,3 +235,39 @@ pub fn get_engine_status(state: State<AppState>) -> Result<EngineStatus, String>
         error: None,
     })
 }
+
+#[tauri::command]
+pub async fn send_osc_test_value(
+    state: State<'_, AppState>,
+    address: String,
+    value: f32,
+) -> Result<(), String> {
+    let settings = {
+        let s = state.settings.lock().map_err(|e| e.to_string())?;
+        s.clone()
+    };
+
+    let args = vec![crate::router::OscArgValue::Float(value)];
+
+    match settings.osc_send_protocol {
+        crate::models::OscSendProtocol::Udp => {
+            osc_engine::send_osc_udp(
+                &settings.osc_send_host,
+                settings.osc_send_port,
+                &address,
+                &args,
+            )
+            .await
+        }
+        crate::models::OscSendProtocol::Tcp => {
+            osc_engine::send_osc_tcp(
+                &settings.osc_send_host,
+                settings.osc_send_port,
+                &address,
+                &args,
+                settings.osc_tcp_send_timeout_ms,
+            )
+            .await
+        }
+    }
+}

@@ -61,6 +61,10 @@ pub struct Mapping {
     #[serde(default)]
     pub midi_input_velocity: Option<u8>,
     pub osc_args: Vec<OscArgDef>,
+    #[serde(default)]
+    pub osc_output_address: String,
+    #[serde(default)]
+    pub osc_transform: Option<OscTransform>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -68,6 +72,7 @@ pub struct Mapping {
 pub enum Direction {
     OscToMidi,
     MidiToOsc,
+    OscToOsc,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -107,6 +112,31 @@ pub enum OscArgSource {
     Static { value: serde_json::Value },
     MidiValue,
     MidiNote,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum TransformCurve {
+    Linear,
+    Logarithmic,
+    Calibrated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CalibrationPoint {
+    pub input: f64,
+    pub output: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OscTransform {
+    pub curve: TransformCurve,
+    pub input_min: f64,
+    pub input_max: f64,
+    pub output_min: f64,
+    pub output_max: f64,
+    #[serde(default)]
+    pub calibration_points: Vec<CalibrationPoint>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,6 +232,8 @@ mod tests {
             midi_velocity_or_value: ValueSource::Static { value: 127 },
             midi_input_velocity: None,
             osc_args: vec![],
+            osc_output_address: String::new(),
+            osc_transform: None,
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Mapping = serde_json::from_str(&json).unwrap();
@@ -222,6 +254,8 @@ mod tests {
             midi_velocity_or_value: ValueSource::Static { value: 127 },
             midi_input_velocity: None,
             osc_args: vec![],
+            osc_output_address: String::new(),
+            osc_transform: None,
         };
         let v: serde_json::Value = serde_json::to_value(&m).unwrap();
         assert_eq!(v["direction"], "osc_to_midi");
@@ -266,6 +300,8 @@ mod tests {
                 arg_type: OscArgType::Float,
                 source: OscArgSource::MidiValue,
             }],
+            osc_output_address: String::new(),
+            osc_transform: None,
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Mapping = serde_json::from_str(&json).unwrap();
@@ -289,5 +325,42 @@ mod tests {
         }"#;
         let m: Mapping = serde_json::from_str(json).unwrap();
         assert_eq!(m.midi_input_velocity, None);
+        assert_eq!(m.osc_output_address, "");
+        assert_eq!(m.osc_transform, None);
+    }
+
+    #[test]
+    fn test_osc_to_osc_mapping_serialization() {
+        let m = Mapping {
+            id: "o2o-1".to_string(),
+            enabled: true,
+            direction: Direction::OscToOsc,
+            osc_address: "/meters/1".to_string(),
+            osc_arg_types: vec![],
+            midi_message_type: MidiMessageType::NoteOn,
+            midi_channel: 1,
+            midi_note_or_cc: 60,
+            midi_velocity_or_value: ValueSource::Static { value: 0 },
+            midi_input_velocity: None,
+            osc_args: vec![],
+            osc_output_address: "/plugin/volume".to_string(),
+            osc_transform: Some(OscTransform {
+                curve: TransformCurve::Logarithmic,
+                input_min: -90.0,
+                input_max: 10.0,
+                output_min: 0.0,
+                output_max: 1.0,
+                calibration_points: vec![],
+            }),
+        };
+        let json = serde_json::to_string_pretty(&m).unwrap();
+        let m2: Mapping = serde_json::from_str(&json).unwrap();
+        assert_eq!(m, m2);
+
+        let v: serde_json::Value = serde_json::to_value(&m).unwrap();
+        assert_eq!(v["direction"], "osc_to_osc");
+        assert_eq!(v["osc_output_address"], "/plugin/volume");
+        assert_eq!(v["osc_transform"]["curve"], "logarithmic");
+        assert_eq!(v["osc_transform"]["input_min"], -90.0);
     }
 }

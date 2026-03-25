@@ -60,7 +60,7 @@ src-tauri/              # Rust backend
 
 ### Frontend ↔ Backend IPC
 
-Frontend uses `invoke()` for commands and `listen()` for backend-pushed events. Key commands: `get_settings`, `update_settings`, `list_midi_inputs`, `list_midi_outputs`, `get_mappings`, `add_mapping`, `update_mapping`, `delete_mapping`, `start_engine`, `stop_engine`. Key events: `mapping-activity`, `unmatched-message`, `engine-status`, `midi-devices-changed`.
+Frontend uses `invoke()` for commands and `listen()` for backend-pushed events. Key commands: `get_settings`, `update_settings`, `list_midi_inputs`, `list_midi_outputs`, `get_mappings`, `add_mapping`, `update_mapping`, `delete_mapping`, `start_engine`, `stop_engine`, `send_osc_test_value`. Key events: `mapping-activity`, `unmatched-message`, `engine-status`, `midi-devices-changed`.
 
 ### Engine Design
 
@@ -80,6 +80,7 @@ Two files: `settings.json` (OSC/MIDI config) and `mappings.json` (mapping rows).
 - **Dark mode only** — no light mode toggle (musicians work in dark environments)
 - **Single screen UI** — settings panel (top, collapsible), mapping table (center), activity log (bottom)
 - **MVP message types:** MIDI Note On/Off and CC only; OSC with int32, float32, string args
+- **OSC → OSC routing:** Supports passthrough, linear, logarithmic, and calibrated transforms between OSC addresses. Calibrated mode uses monotone cubic Hermite interpolation (Fritsch-Carlson) over user-provided calibration points.
 - **Value scaling:** OSC float 0.0–1.0 ↔ MIDI 0–127 (linear, multiply/divide by 127)
 - **MIDI note convention:** Middle C = C3 = MIDI note 60
 - **OSC TCP framing:** SLIP (RFC 1055) — matches QLab and OSC 1.1 spec

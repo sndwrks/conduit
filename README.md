@@ -83,8 +83,8 @@ After you've set the settings you like go ahead and click `Start`. The app will 
 
 ### Mapping rows
 
-Click `+ Add Mapping` at the bottom of the app. This is the juice of the app. It allows you to select `MIDI -> OSC` or `OSC -> MIDI` and select an address.
- 
+Click `+ Add Mapping` at the bottom of the app. This is the juice of the app. It allows you to select `MIDI -> OSC`, `OSC -> MIDI`, or `OSC -> OSC` and select an address.
+
 **MIDI**
 
 MIDI can listen to specific channel/velocity combinations or ignore velocity with `Vel Any`. Right now the available values are `Note On`, `Note Off`, `CC`, and `Program Change` messages. You also must specify a channel to listen to. MIDI values can also be mapped to OSC Args via the dropdown after adding an arg.
@@ -92,6 +92,19 @@ MIDI can listen to specific channel/velocity combinations or ignore velocity wit
 **OSC**
 
 OSC can listen to specific addresses. It can also map `float` args to midi values `0-1.0` -> `1-127`. You can also specify a static output for the MIDI value. Additionally, you can add as many args as you like. They'll show up in the sent osc message like this `/address/yay arg arg arg`.
+
+**OSC → OSC**
+
+OSC to OSC mappings allow you to receive on one OSC address and forward to another, with an optional value transform. Transform options:
+
+| Transform | Use case |
+| --- | --- |
+| **Passthrough** | Forward all args unchanged to a different address |
+| **Linear** | Scale values between input/output ranges (e.g. 0–100 → 0.0–1.0) |
+| **Logarithmic** | Fader-style curve — more resolution at the top, compressed at the bottom |
+| **Calibrated** | Learn the target plugin's curve via a 5-point calibration wizard |
+
+The **Calibrated** mode is useful when the target plugin has a non-standard parameter curve. Click "Calibrate" to step through a wizard that sends test values and asks you to record what the target displays. The calibration uses smooth cubic interpolation (Fritsch-Carlson) to fit the curve. Calibration data can be copied and pasted between mappings via the clipboard icons — useful when multiple mappings target the same plugin type.
 
 ## Development
 

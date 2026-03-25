@@ -45,7 +45,7 @@ export function OscOutputFields({ mapping, onChange }: OscOutputFieldsProps) {
     <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1">
         <Input
-          className={`h-9 text-xs w-40 font-mono ${invalid ? "border-red-500" : ""}`}
+          className={`h-9 text-xs w-52 font-mono ${invalid ? "border-red-500" : ""}`}
           placeholder="/osc/address"
           value={mapping.osc_address}
           onChange={(e) => onChange({ ...mapping, osc_address: e.target.value })}
