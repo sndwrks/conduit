@@ -60,6 +60,7 @@ pub fn run() {
             commands::engine::start_engine,
             commands::engine::stop_engine,
             commands::engine::get_engine_status,
+            commands::engine::send_osc_test_value,
         ])
         .setup(move |app| {
             info!("Conduit starting — {} mappings loaded", mapping_count);
