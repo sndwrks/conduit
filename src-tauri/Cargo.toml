@@ -24,6 +24,7 @@ uuid = { version = "1", features = ["v4"] }
 tokio-util = { version = "0.7", features = ["codec"] }
 chrono = { version = "0.4", features = ["serde"] }
 tauri-plugin-autostart = "2"
+tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 log = "0.4"
 
