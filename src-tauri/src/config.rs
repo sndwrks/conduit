@@ -180,6 +180,9 @@ mod tests {
             midi_velocity_or_value: ValueSource::Static { value: 127 },
             midi_input_velocity: None,
             osc_args: vec![],
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         }];
         save_mappings_to(&dir, &mappings).unwrap();
         let loaded = load_mappings_from(&dir).unwrap();
@@ -203,6 +206,9 @@ mod tests {
             midi_velocity_or_value: ValueSource::Static { value: 0 },
             midi_input_velocity: None,
             osc_args: vec![],
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         }];
         save_mappings_to(&dir, &mappings).unwrap();
         let tmp_path = dir.join("mappings.json.tmp");
