@@ -28,10 +28,12 @@ export function OscOutputFields({ mapping, onChange }: OscOutputFieldsProps) {
     onChange({ ...mapping, osc_args: args });
   };
 
+  const isMsc = mapping.midi_message_type === "msc";
+
   const addArg = () => {
     const newArg: OscArgDef = {
-      type: "float",
-      source: { type: "midi_value" },
+      type: isMsc ? "string" : "float",
+      source: isMsc ? { type: "msc_cue_number" } : { type: "midi_value" },
     };
     onChange({ ...mapping, osc_args: [...mapping.osc_args, newArg] });
   };
@@ -85,8 +87,16 @@ export function OscOutputFields({ mapping, onChange }: OscOutputFieldsProps) {
                 source = { type: "static", value: arg.type === "string" ? "" : 0 };
               } else if (v === "midi_value") {
                 source = { type: "midi_value" };
-              } else {
+              } else if (v === "midi_note") {
                 source = { type: "midi_note" };
+              } else if (v === "msc_cue_number") {
+                source = { type: "msc_cue_number" };
+              } else if (v === "msc_cue_list") {
+                source = { type: "msc_cue_list" };
+              } else if (v === "msc_cue_path") {
+                source = { type: "msc_cue_path" };
+              } else {
+                source = { type: "midi_value" };
               }
               updateArg(i, { ...arg, source });
             }}
@@ -95,9 +105,20 @@ export function OscOutputFields({ mapping, onChange }: OscOutputFieldsProps) {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="midi_value">MIDI Value</SelectItem>
-              <SelectItem value="midi_note">MIDI Note</SelectItem>
-              <SelectItem value="static">Static</SelectItem>
+              {isMsc ? (
+                <>
+                  <SelectItem value="msc_cue_number">Cue Number</SelectItem>
+                  <SelectItem value="msc_cue_list">Cue List</SelectItem>
+                  <SelectItem value="msc_cue_path">Cue Path</SelectItem>
+                  <SelectItem value="static">Static</SelectItem>
+                </>
+              ) : (
+                <>
+                  <SelectItem value="midi_value">MIDI Value</SelectItem>
+                  <SelectItem value="midi_note">MIDI Note</SelectItem>
+                  <SelectItem value="static">Static</SelectItem>
+                </>
+              )}
             </SelectContent>
           </Select>
           {arg.source.type === "static" && arg.type === "string" && (

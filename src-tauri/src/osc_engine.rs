@@ -293,6 +293,7 @@ pub fn dispatch_output(
                     crate::models::MidiMessageType::NoteOff => 0x80 + (channel - 1),
                     crate::models::MidiMessageType::Cc => 0xB0 + (channel - 1),
                     crate::models::MidiMessageType::ProgramChange => 0xC0 + (channel - 1),
+                    crate::models::MidiMessageType::Msc => return, // MSC output not supported
                 };
                 if let Ok(mut conn) = conn.lock() {
                     if matches!(message_type, crate::models::MidiMessageType::ProgramChange) {

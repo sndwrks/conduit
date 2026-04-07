@@ -61,6 +61,12 @@ pub struct Mapping {
     #[serde(default)]
     pub midi_input_velocity: Option<u8>,
     pub osc_args: Vec<OscArgDef>,
+    #[serde(default)]
+    pub msc_device_id: Option<u8>,
+    #[serde(default)]
+    pub msc_command_format: Option<MscCommandFormat>,
+    #[serde(default)]
+    pub msc_command: Option<MscCommand>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -77,6 +83,23 @@ pub enum MidiMessageType {
     NoteOff,
     Cc,
     ProgramChange,
+    Msc,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MscCommand {
+    Go,
+    Stop,
+    Resume,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum MscCommandFormat {
+    All,
+    Lighting,
+    Sound,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -107,6 +130,9 @@ pub enum OscArgSource {
     Static { value: serde_json::Value },
     MidiValue,
     MidiNote,
+    MscCueNumber,
+    MscCueList,
+    MscCuePath,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -202,6 +228,9 @@ mod tests {
             midi_velocity_or_value: ValueSource::Static { value: 127 },
             midi_input_velocity: None,
             osc_args: vec![],
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Mapping = serde_json::from_str(&json).unwrap();
@@ -222,6 +251,9 @@ mod tests {
             midi_velocity_or_value: ValueSource::Static { value: 127 },
             midi_input_velocity: None,
             osc_args: vec![],
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         };
         let v: serde_json::Value = serde_json::to_value(&m).unwrap();
         assert_eq!(v["direction"], "osc_to_midi");
@@ -266,6 +298,9 @@ mod tests {
                 arg_type: OscArgType::Float,
                 source: OscArgSource::MidiValue,
             }],
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Mapping = serde_json::from_str(&json).unwrap();
@@ -289,5 +324,26 @@ mod tests {
         }"#;
         let m: Mapping = serde_json::from_str(json).unwrap();
         assert_eq!(m.midi_input_velocity, None);
+        assert_eq!(m.msc_device_id, None);
+        assert_eq!(m.msc_command_format, None);
+        assert_eq!(m.msc_command, None);
+    }
+
+    #[test]
+    fn test_msc_command_serialization() {
+        let v = serde_json::to_value(MscCommand::Go).unwrap();
+        assert_eq!(v, "go");
+        let v = serde_json::to_value(MscCommandFormat::Lighting).unwrap();
+        assert_eq!(v, "lighting");
+    }
+
+    #[test]
+    fn test_osc_arg_source_msc_cue_number() {
+        let arg = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueNumber,
+        };
+        let v: serde_json::Value = serde_json::to_value(&arg).unwrap();
+        assert_eq!(v["source"]["type"], "msc_cue_number");
     }
 }
