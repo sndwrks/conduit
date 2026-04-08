@@ -50,9 +50,9 @@ export type OscArgSource =
   | { type: "static"; value: number | string }
   | { type: "midi_value" }
   | { type: "midi_note" }
-  | { type: "msc_cue_number" }
-  | { type: "msc_cue_list" }
-  | { type: "msc_cue_path" };
+  | { type: "msc_cue_number"; template?: string }
+  | { type: "msc_cue_list"; template?: string }
+  | { type: "msc_cue_path"; template?: string };
 
 export interface MidiPort {
   name: string;
