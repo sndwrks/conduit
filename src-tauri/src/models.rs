@@ -130,9 +130,18 @@ pub enum OscArgSource {
     Static { value: serde_json::Value },
     MidiValue,
     MidiNote,
-    MscCueNumber,
-    MscCueList,
-    MscCuePath,
+    MscCueNumber {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        template: Option<String>,
+    },
+    MscCueList {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        template: Option<String>,
+    },
+    MscCuePath {
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        template: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -341,9 +350,35 @@ mod tests {
     fn test_osc_arg_source_msc_cue_number() {
         let arg = OscArgDef {
             arg_type: OscArgType::String,
-            source: OscArgSource::MscCueNumber,
+            source: OscArgSource::MscCueNumber { template: None },
         };
         let v: serde_json::Value = serde_json::to_value(&arg).unwrap();
         assert_eq!(v["source"]["type"], "msc_cue_number");
+        // template should be omitted when None
+        assert!(v["source"].get("template").is_none());
+    }
+
+    #[test]
+    fn test_osc_arg_source_msc_cue_number_with_template() {
+        let arg = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueNumber {
+                template: Some("Lighting Cue {cue_number}".to_string()),
+            },
+        };
+        let v: serde_json::Value = serde_json::to_value(&arg).unwrap();
+        assert_eq!(v["source"]["type"], "msc_cue_number");
+        assert_eq!(v["source"]["template"], "Lighting Cue {cue_number}");
+    }
+
+    #[test]
+    fn test_osc_arg_source_msc_cue_number_backward_compat() {
+        // Old format without template field should deserialize fine
+        let json = r#"{"type":"string","source":{"type":"msc_cue_number"}}"#;
+        let arg: OscArgDef = serde_json::from_str(json).unwrap();
+        assert_eq!(
+            arg.source,
+            OscArgSource::MscCueNumber { template: None }
+        );
     }
 }

@@ -313,6 +313,13 @@ fn msc_command_byte_to_str(cmd: u8) -> &'static str {
     }
 }
 
+fn apply_template(template: &Option<String>, placeholder: &str, value: &str) -> String {
+    match template {
+        Some(t) => t.replace(placeholder, value),
+        None => value.to_string(),
+    }
+}
+
 fn build_osc_arg_msc(
     def: &OscArgDef,
     cue_number: &str,
@@ -320,25 +327,31 @@ fn build_osc_arg_msc(
     cue_path: &Option<String>,
 ) -> OscArgValue {
     match &def.source {
-        OscArgSource::MscCueNumber => match def.arg_type {
-            OscArgType::String => OscArgValue::String(cue_number.to_string()),
+        OscArgSource::MscCueNumber { template } => match def.arg_type {
+            OscArgType::String => {
+                OscArgValue::String(apply_template(template, "{cue_number}", cue_number))
+            }
             OscArgType::Float => {
                 OscArgValue::Float(cue_number.parse::<f32>().unwrap_or(0.0))
             }
             OscArgType::Int => OscArgValue::Int(cue_number.parse::<i32>().unwrap_or(0)),
         },
-        OscArgSource::MscCueList => {
+        OscArgSource::MscCueList { template } => {
             let val = cue_list.as_deref().unwrap_or("");
             match def.arg_type {
-                OscArgType::String => OscArgValue::String(val.to_string()),
+                OscArgType::String => {
+                    OscArgValue::String(apply_template(template, "{cue_list}", val))
+                }
                 OscArgType::Float => OscArgValue::Float(val.parse::<f32>().unwrap_or(0.0)),
                 OscArgType::Int => OscArgValue::Int(val.parse::<i32>().unwrap_or(0)),
             }
         }
-        OscArgSource::MscCuePath => {
+        OscArgSource::MscCuePath { template } => {
             let val = cue_path.as_deref().unwrap_or("");
             match def.arg_type {
-                OscArgType::String => OscArgValue::String(val.to_string()),
+                OscArgType::String => {
+                    OscArgValue::String(apply_template(template, "{cue_path}", val))
+                }
                 OscArgType::Float => OscArgValue::Float(val.parse::<f32>().unwrap_or(0.0)),
                 OscArgType::Int => OscArgValue::Int(val.parse::<i32>().unwrap_or(0)),
             }
@@ -377,9 +390,9 @@ fn build_osc_arg(def: &OscArgDef, midi_value: u8, midi_note: u8) -> OscArgValue 
                 OscArgValue::String(value.as_str().unwrap_or("").to_string())
             }
         },
-        OscArgSource::MscCueNumber | OscArgSource::MscCueList | OscArgSource::MscCuePath => {
-            OscArgValue::String(String::new())
-        }
+        OscArgSource::MscCueNumber { .. }
+        | OscArgSource::MscCueList { .. }
+        | OscArgSource::MscCuePath { .. } => OscArgValue::String(String::new()),
     }
 }
 
@@ -681,7 +694,7 @@ mod tests {
     fn test_build_osc_arg_msc_cue_number_string() {
         let def = OscArgDef {
             arg_type: OscArgType::String,
-            source: OscArgSource::MscCueNumber,
+            source: OscArgSource::MscCueNumber { template: None },
         };
         match build_osc_arg_msc(&def, "10", &None, &None) {
             OscArgValue::String(s) => assert_eq!(s, "10"),
@@ -693,7 +706,7 @@ mod tests {
     fn test_build_osc_arg_msc_cue_number_float() {
         let def = OscArgDef {
             arg_type: OscArgType::Float,
-            source: OscArgSource::MscCueNumber,
+            source: OscArgSource::MscCueNumber { template: None },
         };
         match build_osc_arg_msc(&def, "1.5", &None, &None) {
             OscArgValue::Float(f) => assert!((f - 1.5).abs() < 0.001),
@@ -702,10 +715,24 @@ mod tests {
     }
 
     #[test]
+    fn test_build_osc_arg_msc_cue_number_with_template() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueNumber {
+                template: Some("Lighting Cue {cue_number}".to_string()),
+            },
+        };
+        match build_osc_arg_msc(&def, "10", &None, &None) {
+            OscArgValue::String(s) => assert_eq!(s, "Lighting Cue 10"),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
     fn test_build_osc_arg_msc_cue_list() {
         let def = OscArgDef {
             arg_type: OscArgType::String,
-            source: OscArgSource::MscCueList,
+            source: OscArgSource::MscCueList { template: None },
         };
         let cue_list = Some("5".to_string());
         match build_osc_arg_msc(&def, "10", &cue_list, &None) {
@@ -718,10 +745,25 @@ mod tests {
     fn test_build_osc_arg_msc_cue_list_none() {
         let def = OscArgDef {
             arg_type: OscArgType::String,
-            source: OscArgSource::MscCueList,
+            source: OscArgSource::MscCueList { template: None },
         };
         match build_osc_arg_msc(&def, "10", &None, &None) {
             OscArgValue::String(s) => assert_eq!(s, ""),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_list_with_template() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueList {
+                template: Some("List: {cue_list}".to_string()),
+            },
+        };
+        let cue_list = Some("main".to_string());
+        match build_osc_arg_msc(&def, "10", &cue_list, &None) {
+            OscArgValue::String(s) => assert_eq!(s, "List: main"),
             _ => panic!("Expected string"),
         }
     }
