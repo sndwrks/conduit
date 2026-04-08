@@ -98,6 +98,14 @@ export function OscOutputFields({ mapping, onChange }: OscOutputFieldsProps) {
               } else {
                 source = { type: "midi_value" };
               }
+              // Carry over template when switching between MSC source types
+              if (
+                "template" in arg.source &&
+                arg.source.template &&
+                (v === "msc_cue_number" || v === "msc_cue_list" || v === "msc_cue_path")
+              ) {
+                (source as { template?: string }).template = arg.source.template;
+              }
               updateArg(i, { ...arg, source });
             }}
           >
@@ -121,6 +129,21 @@ export function OscOutputFields({ mapping, onChange }: OscOutputFieldsProps) {
               )}
             </SelectContent>
           </Select>
+          {arg.type === "string" &&
+            (arg.source.type === "msc_cue_number" ||
+              arg.source.type === "msc_cue_list" ||
+              arg.source.type === "msc_cue_path") && (
+            <Input
+              className="h-9 text-xs w-40 font-mono"
+              placeholder={`{${arg.source.type.replace("msc_", "")}}`}
+              value={arg.source.template ?? ""}
+              onChange={(e) => {
+                const template = e.target.value || undefined;
+                const sourceType = arg.source.type as "msc_cue_number" | "msc_cue_list" | "msc_cue_path";
+                updateArg(i, { ...arg, source: { type: sourceType, template } });
+              }}
+            />
+          )}
           {arg.source.type === "static" && arg.type === "string" && (
             <Input
               className="h-9 text-xs w-16 font-mono"
