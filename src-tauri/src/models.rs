@@ -174,31 +174,6 @@ pub struct OscTransform {
     pub calibration_points: Vec<CalibrationPoint>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-#[serde(rename_all = "snake_case")]
-pub enum TransformCurve {
-    Linear,
-    Logarithmic,
-    Calibrated,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct CalibrationPoint {
-    pub input: f64,
-    pub output: f64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub struct OscTransform {
-    pub curve: TransformCurve,
-    pub input_min: f64,
-    pub input_max: f64,
-    pub output_min: f64,
-    pub output_max: f64,
-    #[serde(default)]
-    pub calibration_points: Vec<CalibrationPoint>,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MidiPort {
     pub name: String,
@@ -421,6 +396,9 @@ mod tests {
                 output_max: 1.0,
                 calibration_points: vec![],
             }),
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         };
         let json = serde_json::to_string_pretty(&m).unwrap();
         let m2: Mapping = serde_json::from_str(&json).unwrap();
