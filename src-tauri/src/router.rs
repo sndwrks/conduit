@@ -297,21 +297,28 @@ pub enum OutputAction {
 }
 
 fn apply_transform(arg: &OscArgValue, transform: &OscTransform) -> OscArgValue {
-    match arg {
-        OscArgValue::Float(f) => {
-            OscArgValue::Float(transform_value(*f as f64, transform) as f32)
-        }
-        OscArgValue::Int(i) => {
-            OscArgValue::Int(transform_value(*i as f64, transform).round() as i32)
-        }
-        OscArgValue::String(_) => arg.clone(),
+    let input_f64 = match arg {
+        OscArgValue::Float(f) => *f as f64,
+        OscArgValue::Int(i) => *i as f64,
+        OscArgValue::String(_) => return arg.clone(),
+    };
+    let result = transform_value(input_f64, transform);
+
+    match transform.output_type {
+        OscOutputType::Auto => match arg {
+            OscArgValue::Float(_) => OscArgValue::Float(result as f32),
+            OscArgValue::Int(_) => OscArgValue::Int(result.round() as i32),
+            OscArgValue::String(_) => unreachable!(),
+        },
+        OscOutputType::Float => OscArgValue::Float(result as f32),
+        OscOutputType::Int => OscArgValue::Int(result.floor() as i32),
     }
 }
 
 fn transform_value(input: f64, t: &OscTransform) -> f64 {
     // Calibrated mode uses its own point table — bypass range normalization
     if t.curve == TransformCurve::Calibrated {
-        return calibrated_interpolate(input, &t.calibration_points);
+        return calibrated_interpolate(input, &t.calibration_points, t.smoothing);
     }
 
     let in_range = t.input_max - t.input_min;
@@ -335,6 +342,12 @@ fn transform_value(input: f64, t: &OscTransform) -> f64 {
             // This matches the behavior of a typical audio fader or log pot.
             normalized * normalized * normalized
         }
+        TransformCurve::LogarithmicInverse => {
+            // Mirror of x^3 around (0.5, 0.5): expanded at bottom, compressed at top.
+            // Small input near zero produces a large output change; high inputs plateau.
+            let inv = 1.0 - normalized;
+            1.0 - inv * inv * inv
+        }
         TransformCurve::Calibrated => unreachable!(),
     };
 
@@ -343,26 +356,15 @@ fn transform_value(input: f64, t: &OscTransform) -> f64 {
     t.output_min + curved * out_range
 }
 
-fn calibrated_interpolate(input: f64, points: &[CalibrationPoint]) -> f64 {
+fn calibrated_interpolate(input: f64, points: &[CalibrationPoint], smoothing: f64) -> f64 {
     if points.is_empty() {
         return 0.0;
     }
     if points.len() == 1 {
         return points[0].output;
     }
-    if points.len() == 2 {
-        // Only two points — linear interpolation (spline needs 3+)
-        let p0 = &points[0];
-        let p1 = &points[1];
-        let range = p1.input - p0.input;
-        if range.abs() < f64::EPSILON {
-            return p0.output;
-        }
-        let t = ((input - p0.input) / range).clamp(0.0, 1.0);
-        return p0.output + t * (p1.output - p0.output);
-    }
 
-    // Clamp to endpoints
+    // Clamp to endpoints (applies to all interpolation modes)
     let first = &points[0];
     let last = &points[points.len() - 1];
     if input <= first.input {
@@ -372,9 +374,38 @@ fn calibrated_interpolate(input: f64, points: &[CalibrationPoint]) -> f64 {
         return last.output;
     }
 
-    // Monotone cubic Hermite interpolation (Fritsch-Carlson method).
-    // Smooth curve through all points without overshoot/undershoot.
-    monotone_cubic_interpolate(input, points)
+    let linear = linear_interpolate(input, points);
+    if points.len() == 2 {
+        // Spline needs 3+ points — fall back to linear regardless of smoothing
+        return linear;
+    }
+
+    // Blend monotone cubic Hermite (Fritsch-Carlson) with piecewise linear.
+    // smoothing = 1 → cubic only; smoothing = 0 → piecewise linear (sharp knees).
+    let s = smoothing.clamp(0.0, 1.0);
+    let cubic = monotone_cubic_interpolate(input, points);
+    s * cubic + (1.0 - s) * linear
+}
+
+fn linear_interpolate(input: f64, points: &[CalibrationPoint]) -> f64 {
+    // Find the segment containing input. Caller guarantees points.len() >= 2 and
+    // first.input < input < last.input.
+    let segments = points.len() - 1;
+    let mut seg = segments - 1;
+    for i in 0..segments - 1 {
+        if input < points[i + 1].input {
+            seg = i;
+            break;
+        }
+    }
+    let p0 = &points[seg];
+    let p1 = &points[seg + 1];
+    let range = p1.input - p0.input;
+    if range.abs() < f64::EPSILON {
+        return p0.output;
+    }
+    let t = (input - p0.input) / range;
+    p0.output + t * (p1.output - p0.output)
 }
 
 fn monotone_cubic_interpolate(x: f64, points: &[CalibrationPoint]) -> f64 {
@@ -886,6 +917,28 @@ mod tests {
             output_min: out_min,
             output_max: out_max,
             calibration_points: vec![],
+            output_type: OscOutputType::Auto,
+            smoothing: 1.0,
+        }
+    }
+
+    fn make_transform_with_output(
+        curve: TransformCurve,
+        in_min: f64,
+        in_max: f64,
+        out_min: f64,
+        out_max: f64,
+        output_type: OscOutputType,
+    ) -> OscTransform {
+        OscTransform {
+            curve,
+            input_min: in_min,
+            input_max: in_max,
+            output_min: out_min,
+            output_max: out_max,
+            calibration_points: vec![],
+            output_type,
+            smoothing: 1.0,
         }
     }
 
@@ -969,6 +1022,39 @@ mod tests {
     }
 
     #[test]
+    fn test_transform_inverse_log_endpoints() {
+        let t = make_transform(TransformCurve::LogarithmicInverse, -90.0, 10.0, 0.0, 1.0);
+        let at_min = transform_value(-90.0, &t);
+        let at_max = transform_value(10.0, &t);
+        assert!((at_min - 0.0).abs() < 1e-9, "Min should map to 0.0, got {}", at_min);
+        assert!((at_max - 1.0).abs() < 1e-9, "Max should map to 1.0, got {}", at_max);
+    }
+
+    #[test]
+    fn test_transform_inverse_log_bottom_expanded() {
+        // Bottom quarter of input range should already produce >0.5 of output (fast start)
+        let t = make_transform(TransformCurve::LogarithmicInverse, 0.0, 100.0, 0.0, 1.0);
+        let at_25 = transform_value(25.0, &t);
+        assert!(at_25 > 0.5, "Bottom quarter should map > 0.5 with inverse log, got {}", at_25);
+    }
+
+    #[test]
+    fn test_transform_inverse_log_top_compressed() {
+        // Upper portion of input range should be compressed (output near max)
+        let t = make_transform(TransformCurve::LogarithmicInverse, 0.0, 100.0, 0.0, 1.0);
+        let at_75 = transform_value(75.0, &t);
+        assert!(at_75 > 0.95, "75% input should plateau near max with inverse log, got {}", at_75);
+    }
+
+    #[test]
+    fn test_transform_inverse_log_midpoint() {
+        // Midpoint should map to 1 - 0.5^3 = 0.875 (the geometric mirror of the standard log midpoint)
+        let t = make_transform(TransformCurve::LogarithmicInverse, 0.0, 100.0, 0.0, 1.0);
+        let at_50 = transform_value(50.0, &t);
+        assert!((at_50 - 0.875).abs() < 1e-9, "Inverse log midpoint should be 0.875, got {}", at_50);
+    }
+
+    #[test]
     fn test_transform_zero_range_input() {
         let t = make_transform(TransformCurve::Linear, 5.0, 5.0, 0.0, 1.0);
         assert!((transform_value(5.0, &t) - 0.0).abs() < 1e-9);
@@ -1006,6 +1092,82 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_apply_transform_output_int_floors_positive() {
+        // 0.7 maps linearly to 89.0 * 0.7 = 88.9 → floor = 88
+        let t = make_transform_with_output(
+            TransformCurve::Linear, 0.0, 1.0, 0.0, 127.0, OscOutputType::Int,
+        );
+        match apply_transform(&OscArgValue::Float(0.7), &t) {
+            OscArgValue::Int(i) => assert_eq!(i, 88),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_apply_transform_output_int_floors_negative() {
+        // Linear -10..10 → -10..10, input -1.2 → output -1.2 → floor = -2
+        let t = make_transform_with_output(
+            TransformCurve::Linear, -10.0, 10.0, -10.0, 10.0, OscOutputType::Int,
+        );
+        match apply_transform(&OscArgValue::Float(-1.2), &t) {
+            OscArgValue::Int(i) => assert_eq!(i, -2),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_apply_transform_output_int_from_int_input_uses_floor() {
+        // Int input through scaling that yields a fractional intermediate.
+        // 0..3 → 0..10, input 1 → 10/3 ≈ 3.333 → floor = 3
+        // (Auto would .round() → 3 here, but pick a value where they diverge)
+        // Input 2 → 6.666 → Int floor = 6, Auto round = 7
+        let t = make_transform_with_output(
+            TransformCurve::Linear, 0.0, 3.0, 0.0, 10.0, OscOutputType::Int,
+        );
+        match apply_transform(&OscArgValue::Int(2), &t) {
+            OscArgValue::Int(i) => assert_eq!(i, 6, "Int output should floor, not round"),
+            other => panic!("Expected Int, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_apply_transform_output_float_from_int_input() {
+        // Int input with Float output → no rounding, full precision preserved
+        let t = make_transform_with_output(
+            TransformCurve::Linear, 0.0, 3.0, 0.0, 10.0, OscOutputType::Float,
+        );
+        match apply_transform(&OscArgValue::Int(2), &t) {
+            OscArgValue::Float(f) => assert!((f - 6.6666667).abs() < 1e-4, "got {}", f),
+            other => panic!("Expected Float, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_apply_transform_output_float_from_float_input() {
+        let t = make_transform_with_output(
+            TransformCurve::Linear, 0.0, 1.0, 0.0, 127.0, OscOutputType::Float,
+        );
+        match apply_transform(&OscArgValue::Float(0.5), &t) {
+            OscArgValue::Float(f) => assert!((f - 63.5).abs() < 1e-4, "got {}", f),
+            other => panic!("Expected Float, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_apply_transform_output_type_does_not_affect_string() {
+        for ot in [OscOutputType::Auto, OscOutputType::Int, OscOutputType::Float] {
+            let t = make_transform_with_output(
+                TransformCurve::Linear, 0.0, 1.0, 0.0, 127.0, ot,
+            );
+            let s = OscArgValue::String("hello".into());
+            match apply_transform(&s, &t) {
+                OscArgValue::String(v) => assert_eq!(v, "hello"),
+                other => panic!("Expected String passthrough, got {:?}", other),
+            }
+        }
+    }
+
     // --- Calibration interpolation tests ---
 
     fn make_calibration_points() -> Vec<CalibrationPoint> {
@@ -1021,9 +1183,9 @@ mod tests {
     #[test]
     fn test_calibrated_exact_points() {
         let points = make_calibration_points();
-        assert!((calibrated_interpolate(-100.0, &points) - 0.0).abs() < 1e-9);
-        assert!((calibrated_interpolate(0.0, &points) - 0.5).abs() < 1e-9);
-        assert!((calibrated_interpolate(12.0, &points) - 1.0).abs() < 1e-9);
+        assert!((calibrated_interpolate(-100.0, &points, 1.0) - 0.0).abs() < 1e-9);
+        assert!((calibrated_interpolate(0.0, &points, 1.0) - 0.5).abs() < 1e-9);
+        assert!((calibrated_interpolate(12.0, &points, 1.0) - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -1032,17 +1194,17 @@ mod tests {
         // Monotone cubic: smooth curve through (-100,0), (0,0.5), (12,1.0)
         // -50 is midpoint of the long shallow segment — value should be
         // between 0 and 0.5, monotonically increasing
-        let at_minus50 = calibrated_interpolate(-50.0, &points);
+        let at_minus50 = calibrated_interpolate(-50.0, &points, 1.0);
         assert!(at_minus50 > 0.0 && at_minus50 < 0.5,
             "-50 should be between 0 and 0.5, got {}", at_minus50);
 
-        let at_plus6 = calibrated_interpolate(6.0, &points);
+        let at_plus6 = calibrated_interpolate(6.0, &points, 1.0);
         assert!(at_plus6 > 0.5 && at_plus6 < 1.0,
             "+6 should be between 0.5 and 1.0, got {}", at_plus6);
 
         // Monotonicity: values should be strictly increasing
-        let at_minus75 = calibrated_interpolate(-75.0, &points);
-        let at_minus25 = calibrated_interpolate(-25.0, &points);
+        let at_minus75 = calibrated_interpolate(-75.0, &points, 1.0);
+        let at_minus25 = calibrated_interpolate(-25.0, &points, 1.0);
         assert!(at_minus75 < at_minus50, "Should be monotone");
         assert!(at_minus50 < at_minus25, "Should be monotone");
         assert!(at_minus25 < at_plus6, "Should be monotone");
@@ -1052,22 +1214,22 @@ mod tests {
     fn test_calibrated_clamping() {
         let points = make_calibration_points();
         // Below min → clamp to first output
-        assert!((calibrated_interpolate(-200.0, &points) - 0.0).abs() < 1e-9);
+        assert!((calibrated_interpolate(-200.0, &points, 1.0) - 0.0).abs() < 1e-9);
         // Above max → clamp to last output
-        assert!((calibrated_interpolate(50.0, &points) - 1.0).abs() < 1e-9);
+        assert!((calibrated_interpolate(50.0, &points, 1.0) - 1.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_calibrated_empty_points() {
         let points: Vec<CalibrationPoint> = vec![];
-        assert!((calibrated_interpolate(5.0, &points) - 0.0).abs() < 1e-9);
+        assert!((calibrated_interpolate(5.0, &points, 1.0) - 0.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_calibrated_single_point() {
         let points = vec![CalibrationPoint { input: 0.0, output: 0.5 }];
-        assert!((calibrated_interpolate(0.0, &points) - 0.5).abs() < 1e-9);
-        assert!((calibrated_interpolate(100.0, &points) - 0.5).abs() < 1e-9);
+        assert!((calibrated_interpolate(0.0, &points, 1.0) - 0.5).abs() < 1e-9);
+        assert!((calibrated_interpolate(100.0, &points, 1.0) - 0.5).abs() < 1e-9);
     }
 
     #[test]
@@ -1081,14 +1243,76 @@ mod tests {
             CalibrationPoint { input: 12.0, output: 1.0 },
         ];
         // Exact points — spline must pass through them
-        assert!((calibrated_interpolate(-100.0, &points) - 0.0).abs() < 1e-6);
-        assert!((calibrated_interpolate(-40.0, &points) - 0.25).abs() < 1e-6);
-        assert!((calibrated_interpolate(-10.0, &points) - 0.5).abs() < 1e-6);
-        assert!((calibrated_interpolate(0.0, &points) - 0.75).abs() < 1e-6);
-        assert!((calibrated_interpolate(12.0, &points) - 1.0).abs() < 1e-6);
+        assert!((calibrated_interpolate(-100.0, &points, 1.0) - 0.0).abs() < 1e-6);
+        assert!((calibrated_interpolate(-40.0, &points, 1.0) - 0.25).abs() < 1e-6);
+        assert!((calibrated_interpolate(-10.0, &points, 1.0) - 0.5).abs() < 1e-6);
+        assert!((calibrated_interpolate(0.0, &points, 1.0) - 0.75).abs() < 1e-6);
+        assert!((calibrated_interpolate(12.0, &points, 1.0) - 1.0).abs() < 1e-6);
         // Between points: spline should be smooth and in range
-        let result = calibrated_interpolate(-25.0, &points);
+        let result = calibrated_interpolate(-25.0, &points, 1.0);
         assert!(result > 0.3 && result < 0.45, "Between -40 and -10, got {}", result);
+    }
+
+    #[test]
+    fn test_calibrated_smoothing_zero_is_linear() {
+        // smoothing=0 must produce piecewise-linear output between adjacent points
+        let points = vec![
+            CalibrationPoint { input: 0.0, output: 0.0 },
+            CalibrationPoint { input: 1.0, output: 0.5 },
+            CalibrationPoint { input: 2.0, output: 0.5 },
+            CalibrationPoint { input: 3.0, output: 1.0 },
+        ];
+        // Midpoint of segment 0 → 1: linear says 0.25
+        assert!((calibrated_interpolate(0.5, &points, 0.0) - 0.25).abs() < 1e-9);
+        // Midpoint of flat segment 1 → 2: linear says 0.5
+        assert!((calibrated_interpolate(1.5, &points, 0.0) - 0.5).abs() < 1e-9);
+        // Midpoint of segment 2 → 3: linear says 0.75
+        assert!((calibrated_interpolate(2.5, &points, 0.0) - 0.75).abs() < 1e-9);
+        // Exact knots still hit
+        assert!((calibrated_interpolate(0.0, &points, 0.0) - 0.0).abs() < 1e-9);
+        assert!((calibrated_interpolate(1.0, &points, 0.0) - 0.5).abs() < 1e-9);
+        assert!((calibrated_interpolate(3.0, &points, 0.0) - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_calibrated_smoothing_one_matches_cubic() {
+        // smoothing=1 must produce exactly the Fritsch-Carlson cubic result
+        let points = make_calibration_points();
+        for &x in &[-90.0, -50.0, -10.0, 5.0, 10.0] {
+            let blended = calibrated_interpolate(x, &points, 1.0);
+            let cubic = monotone_cubic_interpolate(x, &points);
+            assert!((blended - cubic).abs() < 1e-12,
+                "smoothing=1 should equal cubic at x={}: {} vs {}", x, blended, cubic);
+        }
+    }
+
+    #[test]
+    fn test_calibrated_smoothing_blend_midpoint() {
+        // smoothing=0.5 must equal the average of cubic and linear
+        let points = make_calibration_points();
+        for &x in &[-50.0, -10.0, 5.0] {
+            let cubic = monotone_cubic_interpolate(x, &points);
+            let linear = linear_interpolate(x, &points);
+            let expected = 0.5 * cubic + 0.5 * linear;
+            let actual = calibrated_interpolate(x, &points, 0.5);
+            assert!((actual - expected).abs() < 1e-12,
+                "smoothing=0.5 blend mismatch at x={}: {} vs {}", x, actual, expected);
+        }
+    }
+
+    #[test]
+    fn test_osc_transform_default_smoothing_is_one() {
+        // Existing serialized configs (without `smoothing`) must deserialize to 1.0
+        let json = r#"{
+            "curve": "calibrated",
+            "input_min": 0.0,
+            "input_max": 1.0,
+            "output_min": 0.0,
+            "output_max": 1.0,
+            "calibration_points": []
+        }"#;
+        let t: OscTransform = serde_json::from_str(json).expect("should deserialize");
+        assert_eq!(t.smoothing, 1.0);
     }
 
     #[test]
@@ -1101,6 +1325,8 @@ mod tests {
             output_min: 0.0,
             output_max: 0.0,
             calibration_points: make_calibration_points(),
+            output_type: OscOutputType::Auto,
+            smoothing: 1.0,
         };
         // Exact calibration points must be hit precisely
         match apply_transform(&OscArgValue::Float(0.0), &t) {

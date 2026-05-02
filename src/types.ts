@@ -14,7 +14,13 @@ export interface Settings {
 export type OscListenProtocol = "udp" | "tcp" | "both";
 export type OscSendProtocol = "udp" | "tcp";
 
-export type TransformCurve = "linear" | "logarithmic" | "calibrated";
+export type TransformCurve =
+  | "linear"
+  | "logarithmic"
+  | "logarithmic_inverse"
+  | "calibrated";
+
+export type OscOutputType = "auto" | "int" | "float";
 
 export interface CalibrationPoint {
   input: number;
@@ -28,6 +34,8 @@ export interface OscTransform {
   output_min: number;
   output_max: number;
   calibration_points: CalibrationPoint[];
+  output_type: OscOutputType;
+  smoothing: number;
 }
 
 export interface Mapping {

@@ -18,13 +18,9 @@ import type {
   Mapping,
   TransformCurve,
   OscTransform,
+  OscOutputType,
   CalibrationPoint,
 } from "@/types";
-
-interface OscToOscFieldsProps {
-  mapping: Mapping;
-  onChange: (mapping: Mapping) => void;
-}
 
 const defaultTransform: OscTransform = {
   curve: "linear",
@@ -33,9 +29,43 @@ const defaultTransform: OscTransform = {
   output_min: 0,
   output_max: 1,
   calibration_points: [],
+  output_type: "auto",
+  smoothing: 1,
 };
 
+interface OscToOscFieldsProps {
+  mapping: Mapping;
+  onChange: (mapping: Mapping) => void;
+}
+
 type CurveOption = TransformCurve | "none";
+
+const curveGlyphPaths: Record<CurveOption, string> = {
+  none: "M 2 8 L 13 8 M 10 5 L 13 8 L 10 11",
+  linear: "M 2 14 L 14 2",
+  logarithmic: "M 2 14 C 9 14, 11 12, 14 2",
+  logarithmic_inverse: "M 2 14 C 5 4, 7 2, 14 2",
+  calibrated: "M 2 14 L 6 9 L 9 11 L 14 2",
+};
+
+function CurveGlyph({ kind }: { kind: CurveOption }) {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      width="14"
+      height="14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.25"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className="shrink-0"
+      aria-hidden
+    >
+      <path d={curveGlyphPaths[kind]} />
+    </svg>
+  );
+}
 
 export function OscToOscFields({ mapping, onChange }: OscToOscFieldsProps) {
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -49,6 +79,8 @@ export function OscToOscFields({ mapping, onChange }: OscToOscFieldsProps) {
   const curveValue: CurveOption = mapping.osc_transform?.curve ?? "none";
   const isCalibrated = curveValue === "calibrated";
   const showRanges =
+    mapping.osc_transform !== null && !isCalibrated;
+  const showOutputType =
     mapping.osc_transform !== null && !isCalibrated;
 
   const handleCurveChange = (v: string) => {
@@ -74,17 +106,16 @@ export function OscToOscFields({ mapping, onChange }: OscToOscFieldsProps) {
     });
   };
 
-  const handleCalibrationComplete = (points: CalibrationPoint[]) => {
+  const updateOutputType = (output_type: OscOutputType) => {
+    const t = mapping.osc_transform ?? defaultTransform;
     onChange({
       ...mapping,
-      osc_transform: {
-        ...(mapping.osc_transform ?? defaultTransform),
-        curve: "calibrated",
-        calibration_points: points,
-      },
+      osc_transform: { ...t, output_type },
     });
-    setWizardOpen(false);
-    toast.success(`Calibration saved (${points.length} points)`);
+  };
+
+  const handleTransformChange = (next: OscTransform) => {
+    onChange({ ...mapping, osc_transform: next });
   };
 
   const handleCopyCalibration = async () => {
@@ -160,14 +191,40 @@ export function OscToOscFields({ mapping, onChange }: OscToOscFieldsProps) {
           title={outputInvalid ? "OSC address must start with /" : ""}
         />
         <Select value={curveValue} onValueChange={handleCurveChange}>
-          <SelectTrigger className="h-7 text-xs w-32">
+          <SelectTrigger className="h-7 text-xs w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="none">Passthrough</SelectItem>
-            <SelectItem value="linear">Linear</SelectItem>
-            <SelectItem value="logarithmic">Logarithmic</SelectItem>
-            <SelectItem value="calibrated">Calibrated</SelectItem>
+            <SelectItem value="none">
+              <span className="flex items-center gap-2">
+                <CurveGlyph kind="none" />
+                <span>Passthrough</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="linear">
+              <span className="flex items-center gap-2">
+                <CurveGlyph kind="linear" />
+                <span>Linear</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="logarithmic">
+              <span className="flex items-center gap-2">
+                <CurveGlyph kind="logarithmic" />
+                <span>Logarithmic</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="logarithmic_inverse">
+              <span className="flex items-center gap-2">
+                <CurveGlyph kind="logarithmic_inverse" />
+                <span>Inverse Log</span>
+              </span>
+            </SelectItem>
+            <SelectItem value="calibrated">
+              <span className="flex items-center gap-2">
+                <CurveGlyph kind="calibrated" />
+                <span>Calibrated</span>
+              </span>
+            </SelectItem>
           </SelectContent>
         </Select>
         {showRanges && (
@@ -212,6 +269,21 @@ export function OscToOscFields({ mapping, onChange }: OscToOscFieldsProps) {
             />
           </>
         )}
+        {showOutputType && (
+          <Select
+            value={mapping.osc_transform!.output_type}
+            onValueChange={(v) => updateOutputType(v as OscOutputType)}
+          >
+            <SelectTrigger className="h-7 text-xs w-24" title="Output value type">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="auto">Auto</SelectItem>
+              <SelectItem value="int">Int</SelectItem>
+              <SelectItem value="float">Float</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         {isCalibrated && (
           <>
             <Button
@@ -250,7 +322,8 @@ export function OscToOscFields({ mapping, onChange }: OscToOscFieldsProps) {
         open={wizardOpen}
         onClose={() => setWizardOpen(false)}
         outputAddress={mapping.osc_output_address}
-        onComplete={handleCalibrationComplete}
+        transform={mapping.osc_transform ?? defaultTransform}
+        onChange={handleTransformChange}
       />
     </>
   );

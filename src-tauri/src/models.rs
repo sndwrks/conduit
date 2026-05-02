@@ -154,7 +154,17 @@ pub enum OscArgSource {
 pub enum TransformCurve {
     Linear,
     Logarithmic,
+    LogarithmicInverse,
     Calibrated,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum OscOutputType {
+    #[default]
+    Auto,
+    Int,
+    Float,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -172,6 +182,14 @@ pub struct OscTransform {
     pub output_max: f64,
     #[serde(default)]
     pub calibration_points: Vec<CalibrationPoint>,
+    #[serde(default)]
+    pub output_type: OscOutputType,
+    #[serde(default = "default_smoothing")]
+    pub smoothing: f64,
+}
+
+fn default_smoothing() -> f64 {
+    1.0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -395,6 +413,8 @@ mod tests {
                 output_min: 0.0,
                 output_max: 1.0,
                 calibration_points: vec![],
+                output_type: OscOutputType::Float,
+                smoothing: 1.0,
             }),
             msc_device_id: None,
             msc_command_format: None,
@@ -409,9 +429,24 @@ mod tests {
         assert_eq!(v["osc_output_address"], "/plugin/volume");
         assert_eq!(v["osc_transform"]["curve"], "logarithmic");
         assert_eq!(v["osc_transform"]["input_min"], -90.0);
+        assert_eq!(v["osc_transform"]["output_type"], "float");
         assert_eq!(m.msc_device_id, None);
         assert_eq!(m.msc_command_format, None);
         assert_eq!(m.msc_command, None);
+    }
+
+    #[test]
+    fn test_osc_transform_backward_compat_missing_output_type() {
+        // Pre-output_type mappings.json must still load, defaulting to Auto
+        let json = r#"{
+            "curve": "linear",
+            "input_min": 0.0,
+            "input_max": 1.0,
+            "output_min": 0.0,
+            "output_max": 127.0
+        }"#;
+        let t: OscTransform = serde_json::from_str(json).unwrap();
+        assert_eq!(t.output_type, OscOutputType::Auto);
     }
 
     #[test]
