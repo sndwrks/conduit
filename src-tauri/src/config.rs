@@ -182,6 +182,9 @@ mod tests {
             osc_args: vec![],
             osc_output_address: String::new(),
             osc_transform: None,
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         }];
         save_mappings_to(&dir, &mappings).unwrap();
         let loaded = load_mappings_from(&dir).unwrap();
@@ -207,6 +210,9 @@ mod tests {
             osc_args: vec![],
             osc_output_address: String::new(),
             osc_transform: None,
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         }];
         save_mappings_to(&dir, &mappings).unwrap();
         let tmp_path = dir.join("mappings.json.tmp");

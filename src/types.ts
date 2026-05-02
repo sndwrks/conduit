@@ -44,10 +44,15 @@ export interface Mapping {
   osc_args: OscArgDef[];
   osc_output_address: string;
   osc_transform: OscTransform | null;
+  msc_device_id: number | null;
+  msc_command_format: MscCommandFormat | null;
+  msc_command: MscCommand | null;
 }
 
 export type Direction = "osc_to_midi" | "midi_to_osc" | "osc_to_osc";
-export type MidiMessageType = "note_on" | "note_off" | "cc" | "program_change";
+export type MidiMessageType = "note_on" | "note_off" | "cc" | "program_change" | "msc";
+export type MscCommand = "go" | "stop" | "resume";
+export type MscCommandFormat = "all" | "lighting" | "sound";
 export type OscArgType = "int" | "float" | "string";
 
 export type ValueSource =
@@ -62,7 +67,10 @@ export interface OscArgDef {
 export type OscArgSource =
   | { type: "static"; value: number | string }
   | { type: "midi_value" }
-  | { type: "midi_note" };
+  | { type: "midi_note" }
+  | { type: "msc_cue_number"; template?: string }
+  | { type: "msc_cue_list"; template?: string }
+  | { type: "msc_cue_path"; template?: string };
 
 export interface MidiPort {
   name: string;
@@ -104,5 +112,8 @@ export function defaultMapping(): Mapping {
     osc_args: [],
     osc_output_address: "",
     osc_transform: null,
+    msc_device_id: null,
+    msc_command_format: null,
+    msc_command: null,
   };
 }

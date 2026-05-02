@@ -17,6 +17,14 @@ pub enum IncomingMessage {
         note_or_cc: u8,
         value: u8,
     },
+    Msc {
+        device_id: u8,
+        command_format: u8,
+        command: u8,
+        cue_number: String,
+        cue_list: Option<String>,
+        cue_path: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -157,6 +165,53 @@ impl Router {
                 Some(OutputAction::Osc {
                     address: output_address,
                     args: output_args,
+                })
+            }
+            (
+                IncomingMessage::Msc {
+                    device_id,
+                    command_format,
+                    command,
+                    cue_number,
+                    cue_list,
+                    cue_path,
+                },
+                Direction::MidiToOsc,
+            ) => {
+                if mapping.midi_message_type != MidiMessageType::Msc {
+                    return None;
+                }
+                // Filter by device ID (None = match all)
+                if let Some(expected_id) = mapping.msc_device_id {
+                    if *device_id != expected_id && *device_id != 0x7F && expected_id != 0x7F {
+                        return None;
+                    }
+                }
+                // Filter by command format
+                if let Some(ref expected_fmt) = mapping.msc_command_format {
+                    let expected_byte = msc_command_format_to_byte(expected_fmt);
+                    if *command_format != expected_byte
+                        && *command_format != 0x7F
+                        && expected_byte != 0x7F
+                    {
+                        return None;
+                    }
+                }
+                // Filter by command
+                if let Some(ref expected_cmd) = mapping.msc_command {
+                    let expected_byte = msc_command_to_byte(expected_cmd);
+                    if *command != expected_byte {
+                        return None;
+                    }
+                }
+                let osc_args: Vec<OscArgValue> = mapping
+                    .osc_args
+                    .iter()
+                    .map(|def| build_osc_arg_msc(def, cue_number, cue_list, cue_path))
+                    .collect();
+                Some(OutputAction::Osc {
+                    address: mapping.osc_address.clone(),
+                    args: osc_args,
                 })
             }
             _ => None,
@@ -411,6 +466,89 @@ fn midi_value_to_osc_float(value: u8) -> f32 {
     value as f32 / 127.0
 }
 
+fn msc_command_to_byte(cmd: &MscCommand) -> u8 {
+    match cmd {
+        MscCommand::Go => 0x01,
+        MscCommand::Stop => 0x02,
+        MscCommand::Resume => 0x03,
+    }
+}
+
+fn msc_command_format_to_byte(fmt: &MscCommandFormat) -> u8 {
+    match fmt {
+        MscCommandFormat::All => 0x7F,
+        MscCommandFormat::Lighting => 0x01,
+        MscCommandFormat::Sound => 0x0A,
+    }
+}
+
+fn msc_command_byte_to_str(cmd: u8) -> &'static str {
+    match cmd {
+        0x01 => "GO",
+        0x02 => "STOP",
+        0x03 => "RESUME",
+        0x04 => "TIMED_GO",
+        0x05 => "LOAD",
+        0x06 => "SET",
+        0x07 => "FIRE",
+        _ => "MSC",
+    }
+}
+
+fn apply_template(template: &Option<String>, placeholder: &str, value: &str) -> String {
+    match template {
+        Some(t) => t.replace(placeholder, value),
+        None => value.to_string(),
+    }
+}
+
+fn build_osc_arg_msc(
+    def: &OscArgDef,
+    cue_number: &str,
+    cue_list: &Option<String>,
+    cue_path: &Option<String>,
+) -> OscArgValue {
+    match &def.source {
+        OscArgSource::MscCueNumber { template } => match def.arg_type {
+            OscArgType::String => {
+                OscArgValue::String(apply_template(template, "{cue_number}", cue_number))
+            }
+            OscArgType::Float => {
+                OscArgValue::Float(cue_number.parse::<f32>().unwrap_or(0.0))
+            }
+            OscArgType::Int => OscArgValue::Int(cue_number.parse::<i32>().unwrap_or(0)),
+        },
+        OscArgSource::MscCueList { template } => {
+            let val = cue_list.as_deref().unwrap_or("");
+            match def.arg_type {
+                OscArgType::String => {
+                    OscArgValue::String(apply_template(template, "{cue_list}", val))
+                }
+                OscArgType::Float => OscArgValue::Float(val.parse::<f32>().unwrap_or(0.0)),
+                OscArgType::Int => OscArgValue::Int(val.parse::<i32>().unwrap_or(0)),
+            }
+        }
+        OscArgSource::MscCuePath { template } => {
+            let val = cue_path.as_deref().unwrap_or("");
+            match def.arg_type {
+                OscArgType::String => {
+                    OscArgValue::String(apply_template(template, "{cue_path}", val))
+                }
+                OscArgType::Float => OscArgValue::Float(val.parse::<f32>().unwrap_or(0.0)),
+                OscArgType::Int => OscArgValue::Int(val.parse::<i32>().unwrap_or(0)),
+            }
+        }
+        OscArgSource::Static { value } => match def.arg_type {
+            OscArgType::Float => OscArgValue::Float(value.as_f64().unwrap_or(0.0) as f32),
+            OscArgType::Int => OscArgValue::Int(value.as_i64().unwrap_or(0) as i32),
+            OscArgType::String => {
+                OscArgValue::String(value.as_str().unwrap_or("").to_string())
+            }
+        },
+        OscArgSource::MidiValue | OscArgSource::MidiNote => OscArgValue::Int(0),
+    }
+}
+
 fn build_osc_arg(def: &OscArgDef, midi_value: u8, midi_note: u8) -> OscArgValue {
     match &def.source {
         OscArgSource::MidiValue => match def.arg_type {
@@ -434,6 +572,9 @@ fn build_osc_arg(def: &OscArgDef, midi_value: u8, midi_note: u8) -> OscArgValue 
                 OscArgValue::String(value.as_str().unwrap_or("").to_string())
             }
         },
+        OscArgSource::MscCueNumber { .. }
+        | OscArgSource::MscCueList { .. }
+        | OscArgSource::MscCuePath { .. } => OscArgValue::String(String::new()),
     }
 }
 
@@ -462,6 +603,7 @@ fn format_incoming(msg: &IncomingMessage) -> (String, String) {
                 MidiMessageType::NoteOff => "Note Off",
                 MidiMessageType::Cc => "CC",
                 MidiMessageType::ProgramChange => "PC",
+                MidiMessageType::Msc => "MSC",
             };
             if matches!(message_type, MidiMessageType::ProgramChange) {
                 ("midi".to_string(), format!("PC {} Ch {}", note_or_cc, channel))
@@ -470,6 +612,18 @@ fn format_incoming(msg: &IncomingMessage) -> (String, String) {
                     "midi".to_string(),
                     format!("{} {} Val {} Ch {}", type_str, note_or_cc, value, channel),
                 )
+            }
+        }
+        IncomingMessage::Msc {
+            command,
+            cue_number,
+            ..
+        } => {
+            let cmd_str = msc_command_byte_to_str(*command);
+            if cue_number.is_empty() {
+                ("midi".to_string(), format!("MSC {}", cmd_str))
+            } else {
+                ("midi".to_string(), format!("MSC {} Q{}", cmd_str, cue_number))
             }
         }
     }
@@ -488,6 +642,7 @@ fn format_output(action: &OutputAction) -> (String, String) {
                 MidiMessageType::NoteOff => "Note Off",
                 MidiMessageType::Cc => "CC",
                 MidiMessageType::ProgramChange => "PC",
+                MidiMessageType::Msc => "MSC",
             };
             if matches!(message_type, MidiMessageType::ProgramChange) {
                 ("midi".to_string(), format!("PC {} Ch {}", note_or_cc, channel))
@@ -532,6 +687,9 @@ mod tests {
             osc_args: vec![],
             osc_output_address: String::new(),
             osc_transform: None,
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         }
     }
 
@@ -553,6 +711,9 @@ mod tests {
             }],
             osc_output_address: String::new(),
             osc_transform: None,
+            msc_device_id: None,
+            msc_command_format: None,
+            msc_command: None,
         }
     }
 
@@ -954,5 +1115,97 @@ mod tests {
             OscArgValue::Float(f) => assert!((f - 1.0).abs() < 1e-4, "+12 dB should be 1.0, got {}", f),
             _ => panic!("Expected Float"),
         }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_number_string() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueNumber { template: None },
+        };
+        match build_osc_arg_msc(&def, "10", &None, &None) {
+            OscArgValue::String(s) => assert_eq!(s, "10"),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_number_float() {
+        let def = OscArgDef {
+            arg_type: OscArgType::Float,
+            source: OscArgSource::MscCueNumber { template: None },
+        };
+        match build_osc_arg_msc(&def, "1.5", &None, &None) {
+            OscArgValue::Float(f) => assert!((f - 1.5).abs() < 0.001),
+            _ => panic!("Expected float"),
+        }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_number_with_template() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueNumber {
+                template: Some("Lighting Cue {cue_number}".to_string()),
+            },
+        };
+        match build_osc_arg_msc(&def, "10", &None, &None) {
+            OscArgValue::String(s) => assert_eq!(s, "Lighting Cue 10"),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_list() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueList { template: None },
+        };
+        let cue_list = Some("5".to_string());
+        match build_osc_arg_msc(&def, "10", &cue_list, &None) {
+            OscArgValue::String(s) => assert_eq!(s, "5"),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_list_none() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueList { template: None },
+        };
+        match build_osc_arg_msc(&def, "10", &None, &None) {
+            OscArgValue::String(s) => assert_eq!(s, ""),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_build_osc_arg_msc_cue_list_with_template() {
+        let def = OscArgDef {
+            arg_type: OscArgType::String,
+            source: OscArgSource::MscCueList {
+                template: Some("List: {cue_list}".to_string()),
+            },
+        };
+        let cue_list = Some("main".to_string());
+        match build_osc_arg_msc(&def, "10", &cue_list, &None) {
+            OscArgValue::String(s) => assert_eq!(s, "List: main"),
+            _ => panic!("Expected string"),
+        }
+    }
+
+    #[test]
+    fn test_msc_command_format_matching() {
+        assert_eq!(msc_command_format_to_byte(&MscCommandFormat::All), 0x7F);
+        assert_eq!(msc_command_format_to_byte(&MscCommandFormat::Lighting), 0x01);
+        assert_eq!(msc_command_format_to_byte(&MscCommandFormat::Sound), 0x0A);
+    }
+
+    #[test]
+    fn test_msc_command_matching() {
+        assert_eq!(msc_command_to_byte(&MscCommand::Go), 0x01);
+        assert_eq!(msc_command_to_byte(&MscCommand::Stop), 0x02);
+        assert_eq!(msc_command_to_byte(&MscCommand::Resume), 0x03);
     }
 }
