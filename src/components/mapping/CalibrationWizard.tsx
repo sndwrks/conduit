@@ -133,14 +133,16 @@ export function CalibrationWizard({
     onChange({ ...transform, output_type: value });
   };
 
-  const [sending, setSending] = useState<number | null>(null);
-  const handleSend = async (rowIndex: number) => {
+  const [sending, setSending] = useState<{ row: number; side: "in" | "out" } | null>(
+    null,
+  );
+  const handleSend = async (rowIndex: number, side: "in" | "out") => {
     if (!outputAddress) return;
-    setSending(rowIndex);
+    setSending({ row: rowIndex, side });
     try {
       await invoke("send_osc_test_value", {
         address: outputAddress,
-        value: inputs[rowIndex],
+        value: side === "in" ? inputs[rowIndex] : outputs[rowIndex],
       });
     } catch (e) {
       console.error("Failed to send test value:", e);
@@ -200,8 +202,9 @@ export function CalibrationWizard({
 
           {/* Two columns: rows on the left, graph + smoothing + note on the right */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="grid grid-cols-[auto_1fr_auto] gap-x-3 gap-y-1.5 items-center min-w-0 self-start">
+            <div className="grid grid-cols-[auto_auto_1fr_auto] gap-x-2 gap-y-1.5 items-center min-w-0 self-start">
               <div className="text-xs text-muted-foreground">In</div>
+              <div />
               <div className="text-xs text-muted-foreground">Out</div>
               <div />
               {inputs.map((inputVal, i) => (
@@ -210,8 +213,10 @@ export function CalibrationWizard({
                   inputVal={inputVal}
                   outputVal={outputs[i]}
                   onOutputChange={(v) => updateOutput(i, v)}
-                  onSend={() => handleSend(i)}
-                  sending={sending === i}
+                  onSendIn={() => handleSend(i, "in")}
+                  onSendOut={() => handleSend(i, "out")}
+                  sendingIn={sending?.row === i && sending.side === "in"}
+                  sendingOut={sending?.row === i && sending.side === "out"}
                   disabled={!outputAddress}
                 />
               ))}
@@ -259,8 +264,10 @@ interface FiveRowProps {
   inputVal: number;
   outputVal: number;
   onOutputChange: (v: number) => void;
-  onSend: () => void;
-  sending: boolean;
+  onSendIn: () => void;
+  onSendOut: () => void;
+  sendingIn: boolean;
+  sendingOut: boolean;
   disabled: boolean;
 }
 
@@ -268,8 +275,10 @@ function FiveRow({
   inputVal,
   outputVal,
   onOutputChange,
-  onSend,
-  sending,
+  onSendIn,
+  onSendOut,
+  sendingIn,
+  sendingOut,
   disabled,
 }: FiveRowProps) {
   return (
@@ -277,6 +286,16 @@ function FiveRow({
       <div className="font-mono text-xs text-muted-foreground tabular-nums">
         {formatNum(inputVal)}
       </div>
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-8 text-xs px-2"
+        onClick={onSendIn}
+        disabled={disabled || sendingIn}
+        title={disabled ? "Set an output address first" : "Send this input value"}
+      >
+        {sendingIn ? "…" : "Send"}
+      </Button>
       <ValidatedInput
         inputMode="decimal"
         className="h-8 text-xs font-mono"
@@ -290,11 +309,11 @@ function FiveRow({
         size="sm"
         variant="outline"
         className="h-8 text-xs px-2"
-        onClick={onSend}
-        disabled={disabled || sending}
-        title={disabled ? "Set an output address first" : "Send this input value"}
+        onClick={onSendOut}
+        disabled={disabled || sendingOut}
+        title={disabled ? "Set an output address first" : "Send this output value"}
       >
-        {sending ? "…" : "Send"}
+        {sendingOut ? "…" : "Send"}
       </Button>
     </>
   );
