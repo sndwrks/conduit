@@ -20,6 +20,14 @@ main.<new-branch>
 - `main.update-docs`
 - `main.bug-123`
 
+## Adding UI Components
+
+This project uses shadcn/ui-style components but does **not** keep the `shadcn` CLI as a dependency (it pulls in a large, vulnerable transitive tree). Scaffold new components on demand with npx instead:
+
+```bash
+npx shadcn@latest add <component>
+```
+
 ## Pull Request Process
 
 1. Ensure your code follows the project's style and conventions
