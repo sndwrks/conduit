@@ -11,14 +11,17 @@ export function useMappings() {
     new Map(),
   );
 
-  useEffect(() => {
-    invoke<Mapping[]>("get_mappings")
+  const refetch = useCallback(() => {
+    return invoke<Mapping[]>("get_mappings")
       .then(setMappings)
       .catch((e) => {
         console.error(e);
         toast.error("Failed to load mappings");
-      })
-      .finally(() => setLoading(false));
+      });
+  }, []);
+
+  useEffect(() => {
+    refetch().finally(() => setLoading(false));
 
     const timers = debounceTimers.current;
     return () => {
@@ -71,5 +74,5 @@ export function useMappings() {
     [],
   );
 
-  return { mappings, loading, addMapping, updateMapping, deleteMapping, reorderMappings };
+  return { mappings, loading, addMapping, updateMapping, deleteMapping, reorderMappings, refetch };
 }

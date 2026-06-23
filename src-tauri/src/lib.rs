@@ -42,6 +42,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
             None,
@@ -60,6 +61,9 @@ pub fn run() {
             commands::engine::start_engine,
             commands::engine::stop_engine,
             commands::engine::get_engine_status,
+            commands::engine::send_osc_test_value,
+            commands::config_io::export_config,
+            commands::config_io::import_config,
         ])
         .setup(move |app| {
             info!("Conduit starting — {} mappings loaded", mapping_count);

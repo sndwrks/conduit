@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
 import { Toaster, toast } from "sonner";
 import { validatePort } from "@/lib/validators";
 import { SettingsPanel } from "@/components/SettingsPanel";
@@ -11,8 +12,8 @@ import { useEngine } from "@/hooks/useEngine";
 import { useActivityLog } from "@/hooks/useActivityLog";
 
 function App() {
-  const { settings, updateSettings } = useSettings();
-  const { mappings, addMapping, updateMapping, deleteMapping } = useMappings();
+  const { settings, updateSettings, refetch: refetchSettings } = useSettings();
+  const { mappings, addMapping, updateMapping, deleteMapping, refetch: refetchMappings } = useMappings();
   const { inputs, outputs, refresh: refreshMidi } = useMidi();
   const { status, start, stop } = useEngine();
   const { entries, paused, clear, togglePause } = useActivityLog();
@@ -52,6 +53,27 @@ function App() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      await invoke("export_config");
+      toast.success("Config exported");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
+  const handleImport = async () => {
+    try {
+      const imported = await invoke<boolean>("import_config");
+      if (imported) {
+        await Promise.all([refetchSettings(), refetchMappings()]);
+        toast.success("Config imported");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleAddMapping = async () => {
     try {
       await addMapping();
@@ -79,6 +101,8 @@ function App() {
         engineStatus={status}
         onStartEngine={handleStart}
         onStopEngine={handleStop}
+        onExport={handleExport}
+        onImport={handleImport}
       />
       <MappingTable
         mappings={mappings}
