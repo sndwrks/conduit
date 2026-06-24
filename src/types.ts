@@ -14,6 +14,30 @@ export interface Settings {
 export type OscListenProtocol = "udp" | "tcp" | "both";
 export type OscSendProtocol = "udp" | "tcp";
 
+export type TransformCurve =
+  | "linear"
+  | "logarithmic"
+  | "logarithmic_inverse"
+  | "calibrated";
+
+export type OscOutputType = "auto" | "int" | "float";
+
+export interface CalibrationPoint {
+  input: number;
+  output: number;
+}
+
+export interface OscTransform {
+  curve: TransformCurve;
+  input_min: number;
+  input_max: number;
+  output_min: number;
+  output_max: number;
+  calibration_points: CalibrationPoint[];
+  output_type: OscOutputType;
+  smoothing: number;
+}
+
 export interface Mapping {
   id: string;
   enabled: boolean;
@@ -26,12 +50,14 @@ export interface Mapping {
   midi_velocity_or_value: ValueSource;
   midi_input_velocity: number | null;
   osc_args: OscArgDef[];
+  osc_output_address: string;
+  osc_transform: OscTransform | null;
   msc_device_id: number | null;
   msc_command_format: MscCommandFormat | null;
   msc_command: MscCommand | null;
 }
 
-export type Direction = "osc_to_midi" | "midi_to_osc";
+export type Direction = "osc_to_midi" | "midi_to_osc" | "osc_to_osc";
 export type MidiMessageType = "note_on" | "note_off" | "cc" | "program_change" | "msc";
 export type MscCommand = "go" | "stop" | "resume";
 export type MscCommandFormat = "all" | "lighting" | "sound";
@@ -92,6 +118,8 @@ export function defaultMapping(): Mapping {
     midi_velocity_or_value: { type: "static", value: 127 },
     midi_input_velocity: null,
     osc_args: [],
+    osc_output_address: "",
+    osc_transform: null,
     msc_device_id: null,
     msc_command_format: null,
     msc_command: null,

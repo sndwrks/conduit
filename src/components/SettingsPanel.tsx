@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { Settings, ChevronUp, RefreshCw, Lock } from "lucide-react";
+import { Settings, ChevronUp, RefreshCw, Lock, Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ValidatedInput } from "@/components/ui/validated-input";
@@ -33,6 +33,8 @@ interface SettingsPanelProps {
   engineStatus: EngineStatus;
   onStartEngine: () => void;
   onStopEngine: () => void;
+  onExport: () => void;
+  onImport: () => void;
 }
 
 export function SettingsPanel({
@@ -44,6 +46,8 @@ export function SettingsPanel({
   engineStatus,
   onStartEngine,
   onStopEngine,
+  onExport,
+  onImport,
 }: SettingsPanelProps) {
   const [expanded, setExpanded] = useState(false);
   const [version, setVersion] = useState("");
@@ -287,27 +291,50 @@ export function SettingsPanel({
           <Separator />
 
           {/* Startup & Engine */}
-          <div className="px-4 flex items-center gap-6">
-            <label className="flex items-center gap-2 text-xs">
-              <Switch
+          <div className="px-4 flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <label className="flex items-center gap-2 text-xs">
+                <Switch
+                  size="sm"
+                  checked={settings.launch_on_startup}
+                  onCheckedChange={(checked) =>
+                    update({ launch_on_startup: checked === true })
+                  }
+                />
+                <span className="text-muted-foreground">Launch on startup</span>
+              </label>
+              <label className="flex items-center gap-2 text-xs">
+                <Switch
+                  size="sm"
+                  checked={settings.engine_auto_start}
+                  onCheckedChange={(checked) =>
+                    update({ engine_auto_start: checked === true })
+                  }
+                />
+                <span className="text-muted-foreground">Auto-start engine</span>
+              </label>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
                 size="sm"
-                checked={settings.launch_on_startup}
-                onCheckedChange={(checked) =>
-                  update({ launch_on_startup: checked === true })
-                }
-              />
-              <span className="text-muted-foreground">Launch on startup</span>
-            </label>
-            <label className="flex items-center gap-2 text-xs">
-              <Switch
+                className="h-6 text-xs gap-1"
+                onClick={onExport}
+              >
+                <Download className="h-3 w-3" />
+                Export
+              </Button>
+              <Button
+                variant="ghost"
                 size="sm"
-                checked={settings.engine_auto_start}
-                onCheckedChange={(checked) =>
-                  update({ engine_auto_start: checked === true })
-                }
-              />
-              <span className="text-muted-foreground">Auto-start engine</span>
-            </label>
+                className="h-6 text-xs gap-1"
+                disabled={locked}
+                onClick={onImport}
+              >
+                <Upload className="h-3 w-3" />
+                Import
+              </Button>
+            </div>
           </div>
         </div>
       )}

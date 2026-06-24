@@ -23,6 +23,7 @@ import { OscInputFields } from "@/components/mapping/OscInputFields";
 import { MidiInputFields } from "@/components/mapping/MidiInputFields";
 import { MidiOutputFields } from "@/components/mapping/MidiOutputFields";
 import { OscOutputFields } from "@/components/mapping/OscOutputFields";
+import { OscToOscFields } from "@/components/mapping/OscToOscFields";
 import { cn } from "@/lib/utils";
 import type { Mapping, Direction } from "@/types";
 
@@ -34,6 +35,7 @@ interface MappingRowProps {
 
 export function MappingRow({ mapping, onChange, onDelete }: MappingRowProps) {
   const isOscToMidi = mapping.direction === "osc_to_midi";
+  const isOscToOsc = mapping.direction === "osc_to_osc";
 
   return (
     <div
@@ -61,24 +63,31 @@ export function MappingRow({ mapping, onChange, onDelete }: MappingRowProps) {
         <SelectContent>
           <SelectItem value="osc_to_midi">OSC → MIDI</SelectItem>
           <SelectItem value="midi_to_osc">MIDI → OSC</SelectItem>
+          <SelectItem value="osc_to_osc">OSC → OSC</SelectItem>
         </SelectContent>
       </Select>
 
       <div className="flex items-center gap-2 flex-1 min-w-0">
-        {/* Input fields */}
-        {isOscToMidi ? (
-          <OscInputFields mapping={mapping} onChange={onChange} />
+        {isOscToOsc ? (
+          <OscToOscFields mapping={mapping} onChange={onChange} />
         ) : (
-          <MidiInputFields mapping={mapping} onChange={onChange} />
-        )}
+          <>
+            {/* Input fields */}
+            {isOscToMidi ? (
+              <OscInputFields mapping={mapping} onChange={onChange} />
+            ) : (
+              <MidiInputFields mapping={mapping} onChange={onChange} />
+            )}
 
-        <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
+            <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
 
-        {/* Output fields */}
-        {isOscToMidi ? (
-          <MidiOutputFields mapping={mapping} onChange={onChange} />
-        ) : (
-          <OscOutputFields mapping={mapping} onChange={onChange} />
+            {/* Output fields */}
+            {isOscToMidi ? (
+              <MidiOutputFields mapping={mapping} onChange={onChange} />
+            ) : (
+              <OscOutputFields mapping={mapping} onChange={onChange} />
+            )}
+          </>
         )}
       </div>
 

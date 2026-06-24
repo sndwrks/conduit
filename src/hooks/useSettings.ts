@@ -8,14 +8,17 @@ export function useSettings() {
   const [loading, setLoading] = useState(true);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    invoke<Settings>("get_settings")
+  const refetch = useCallback(() => {
+    return invoke<Settings>("get_settings")
       .then(setSettings)
       .catch((e) => {
         console.error(e);
         toast.error("Failed to load settings");
-      })
-      .finally(() => setLoading(false));
+      });
+  }, []);
+
+  useEffect(() => {
+    refetch().finally(() => setLoading(false));
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -33,5 +36,5 @@ export function useSettings() {
     [],
   );
 
-  return { settings, loading, updateSettings };
+  return { settings, loading, updateSettings, refetch };
 }
